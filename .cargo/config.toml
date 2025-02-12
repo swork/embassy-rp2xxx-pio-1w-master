@@ -1,0 +1,8 @@
+[target.thumbv6m-none-eabi]
+runner = 'probe-rs run --chip rp2040'
+
+[build]
+target = "thumbv6m-none-eabi"
+
+[env]
+DEFMT_LOG = "trace" # <- can change to info, warn, or error
