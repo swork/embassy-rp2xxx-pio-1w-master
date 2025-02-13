@@ -8,7 +8,7 @@ use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
-use rp2xxx_pio_1_wire_master_rs::{PioOneWireMaster, PioOneWireMasterProgram, SearchState, RomId};  // , devices::Ds18::{Precision, ds_query, ds_wait, ds_read}};
+use rp2xxx_pio_1_wire_master_rs::{PioOneWireMaster, PioOneWireMasterProgram, SearchState, RomId, devices::TemperatureSensorFamily}; //Ds18::{Precision, ds_query, ds_wait, ds_read}};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -24,43 +24,64 @@ async fn main(_spawner: Spawner) -> ! {
         mut common, sm0, ..
     } = Pio::new(p.PIO0, Irqs);
 
-    defmt::trace!("make master pgm");
     let owmp = PioOneWireMasterProgram::<PIO0>::new(&mut common);
-    defmt::trace!(" program origin {:?}", owmp.prg.origin);
+    let mut owm = PioOneWireMaster::<PIO0, 0>::new(&mut common, sm0, p.PIN_15, &owmp);
 
-    Timer::after(Duration::from_secs(1)).await;
-    defmt::trace!("make master itself");
-    let mut owm = PioOneWireMaster::<PIO0, 0>::new(&mut common, sm0, p.PIN_15, &owmp)
-        .await  // not really async, just slowing things down to test
-        ;
+    if false {
+        let mut st: SearchState = SearchState::start_general();
+        const SEARCH_LIMIT: usize = 10;  // or whatever
+        let mut roms: Vec<RomId, SEARCH_LIMIT> = Vec::new();
+        let mut n_others: usize = 0;
+        defmt::info!("Search:");
+        while let Some(r) = owm.search(&mut st).await {
+            info!("  {:?}", r);
+            match TemperatureSensorFamily::from_code(r[0]) {
+                Ok(_fam) => {
+                    roms.push(r).unwrap();  // correct: fails exceeding N, checked next
+                    if roms.len() >= SEARCH_LIMIT {
+                        break;
+                    }
+                },
+                _ => n_others += 1,
+            }
+        }
+        info!("Search found {:?} DS, {:?} others.", roms.len(), n_others);
+    }
 
-    Timer::after(Duration::from_secs(1)).await;
-    defmt::debug!("Safety first! (just to test)");
-    owm.safety(true).await;
-    Timer::after(Duration::from_secs(2)).await;
+    // Last I saw this one always retrieves all-ones bytes.
+    if true {
+        let presence = owm.reset().await;
+        if presence {
+            defmt::info!("At least one device is present at reset");
+        } else {
+            defmt::warn!("No devices responded to 1W bus reset");
+        }
 
-    defmt::trace!("Test reset: {:?}", owm.reset().await);
-    loop {}
+        // defmt::info!("Scratchpad in 2s:");
+        // Timer::after(Duration::from_secs(2)).await;
 
-    let mut st: SearchState = SearchState::start_general();
+        // defmt::info!("CC");
+        owm.safely_write_byte_blocking(b'\xcc').await;
 
-    const SEARCH_LIMIT: usize = 10;  // or whatever
-    let mut roms: Vec<RomId, SEARCH_LIMIT> = Vec::new();
-    let mut n_others: usize = 0;
-    defmt::info!("Search:");
-    while let Some(r) = owm.search(&mut st).await {
-        info!("  {:?}", r);
-        match r[0..=1] {
-            [b'\x12', b'\x34'] => {
-                roms.push(r).unwrap();  // correct: fails exceeding N, checked elsewhere
-                if roms.len() >= SEARCH_LIMIT {
-                    break;
-                }
-            },
-            _ => n_others += 1,
+        // Timer::after(Duration::from_secs(2)).await;
+        // defmt::info!("4e, write scratchpad");
+        owm.safely_write_byte_blocking(b'\x4e').await;
+
+        Timer::after(Duration::from_secs(2)).await;
+        defmt::info!("H (ello) w (orld)");
+        owm.safely_write_byte_blocking(b'H').await;
+        owm.safely_write_byte_blocking(b'w').await;
+
+        defmt::info!("Now reset and read back in 5s:");
+        owm.reset().await;
+        owm.safely_write_byte_blocking(b'\xcc').await;
+        owm.safely_write_byte_blocking(b'\xbe').await;
+        Timer::after(Duration::from_secs(5)).await;
+        for i in 0..9 {
+            let b = owm.safely_read_byte_blocking().await;
+            defmt::info!("read {:?}: {:?}", i, b);
         }
     }
-    info!("Search found {:?} DS, {:?} others.", roms.len(), n_others);
 
     loop {
         /*

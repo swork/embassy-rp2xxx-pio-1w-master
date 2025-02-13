@@ -44,6 +44,7 @@
 //!    should be doc'd up front.
 //!
 
+pub mod devices;
 
 use defmt::*;
 use embassy_rp::clocks::clk_sys_freq;
@@ -197,7 +198,7 @@ pub struct PioOneWireMaster<'d, PIO: Instance, const SM: usize> {
 }
 
 impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
-    fn new_impl(
+    fn new_common(
         common: &mut Common<'d, PIO>,
         mut sm: &mut StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
@@ -208,7 +209,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         // sideset for output
         cfg.use_program(&program.prg, &[&pin]);
         cfg.set_in_pins(&[&pin]); // data line is read directly
-        let threshold = 8;
+        let threshold = 32;
         cfg.shift_in = ShiftConfig {
             auto_fill: true,
             direction: ShiftDirection::Right,
@@ -228,6 +229,12 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             // preload register y with 1 ==> SPU high (where low ==> asserted)
             instr::set_y(&mut sm, 1);
         }
+        sm.clear_fifos();  // why does set_y leave bits in the OSR?
+        if sm.tx().empty() {
+            defmt::trace!(" 2 tx fifo is properly empty.");
+        } else {
+            defmt::trace!(" 2 tx fifo level: {:?}", sm.tx().level());
+        }
         cfg
     }
 
@@ -240,57 +247,41 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     ) -> Self {
         let origin = program.prg.origin;
         let pin_spu = common.make_pio_pin(pin_spu);
-        let mut cfg = Self::new_impl(common, &mut sm, pin, program);
+        let mut cfg = Self::new_common(common, &mut sm, pin, program);
         cfg.set_out_pins(&[&pin_spu]);
         cfg.set_set_pins(&[&pin_spu]);
-
-        sm.set_config(&cfg);
-
-        // Safe because we're the only writer, and the SM isn't enabled.
-        unsafe {
-            // jump to the start location
-            instr::exec_jmp(&mut sm, origin + INSTR_LABEL_START);
-        }
-
-        sm.set_enable(true);
-        Self { sm, origin, spu: true }
+        Self { sm, origin, spu: true }.setup(cfg)
     }
 
-    pub async fn new(  // TODO NOT REALLY ASYNC, JUST TESTING
+    pub fn new(
         common: &mut Common<'d, PIO>,
         mut sm: StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
         program: &PioOneWireMasterProgram<'d, PIO>,
     ) -> Self {
         let origin = program.prg.origin;
-        let cfg = Self::new_impl(common, &mut sm, pin, program);
+        let cfg = Self::new_common(common, &mut sm, pin, program);
+        Self { sm, origin, spu: false }.setup(cfg)
+    }
 
-        defmt::trace!("Here's set_config in 1s...");
-        Timer::after(Duration::from_secs(1)).await;
-        defmt::trace!("go");
-
-        sm.set_config(&cfg);
+    fn setup(mut self: Self, cfg: Config<'d, PIO>) -> Self {
+        self.sm.set_config(&cfg);
 
         // Safe because we're the only writer, and the SM isn't enabled.
         unsafe {
             // jump to the start location
-            instr::exec_jmp(&mut sm, origin + INSTR_LABEL_START);
+            instr::exec_jmp(&mut self.sm, self.origin + INSTR_LABEL_START);
         }
 
-        Timer::after(Duration::from_secs(1)).await;
-        defmt::trace!("And now here's set_enable in 1s...");
-        Timer::after(Duration::from_secs(1)).await;
-        defmt::trace!("go");
-
-        sm.set_enable(true);
-        Self { sm, origin, spu: false }
+        self.sm.set_enable(true);
+        self
     }
 
     /// Wait until the SM is stalled (TX FIFO and OSR empty, PC at "waiting",
     /// and RX FIFO empty if `drain_rx`) as required for safe use of several API
     /// functions. De-assert the strong-pull-up, if configured and enabled.
     pub async fn safety(self: &mut Self, drain_rx: bool) -> () {
-        let one_us = Duration::from_micros(1);
+        let three_us = Duration::from_micros(3);
         let fifty_us = Duration::from_micros(50);
         'outer: loop {
             'tx_empty: loop {
@@ -303,23 +294,23 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             let mut timeout = 2000; // 2mS
             'rx_idle_wait: loop {
                 let addr = self.sm.get_addr();
-                defmt::debug!("safety: addr {:?}", addr);
-                if addr == self.origin + INSTR_LABEL_WAITING {
+                if addr == self.origin + INSTR_LABEL_WAITING && self.sm.tx().stalled() {
                     if (!drain_rx) || self.sm.rx().empty() {
                         break 'outer;
                     } else {
-                        while !self.sm.rx().empty() {
-                            self.sm.rx().pull(); // drain RX FIFO
-                        }
-                        Timer::after(one_us).await;
+                        self.sm.clear_fifos();
                         continue 'rx_idle_wait;
                     }
                 }
-                Timer::after(one_us).await;
+                defmt::debug!("safety: addr {:?}", addr);
+                if drain_rx {
+                    self.sm.rx().pull();
+                }
+                Timer::after(three_us).await;
                 timeout -= 1;
                 if timeout <= 0 {
                     error!("SM failed safety");
-                    break;
+                    break 'outer;
                 }
             }
         }
@@ -331,7 +322,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     pub async fn rx_fifo_nonempty_wait(self: &mut Self) -> () {
         let threshold = self.sm.get_rx_threshold();
         const fn guess_us(threshold: u64) -> u64 {
-            threshold * 50 // start point. Tune this to minimum additional waits, overruns only for .await latency
+            threshold * 40 // start point. Tune this to minimum additional waits, overruns only for .await latency
         }
         Timer::after(Duration::from_micros(guess_us(threshold.into()))).await;
         let short_delay = Duration::from_micros(2);
@@ -386,9 +377,11 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     /// `Self::new`) the last-received bit is MSB of the return value.
     pub async fn read_blocking(self: &mut Self) -> u32 {
         let n = self.sm.get_rx_threshold();
-        self.blindly_write((0b1_u32 << n) - 1).await;
-        self.safety(false).await;
-        self.sm.rx().pull()  // "RX FIFO receive", not the PIO "pull" operation
+        let thresh_bits = (0b1_u32 << n) - 1;
+        defmt::trace!("read_blocking: thresh is {:?} so bits {:?}", n, thresh_bits);
+        self.blindly_write(thresh_bits).await;
+        self.rx_fifo_nonempty_wait().await;
+        self.sm.rx().pull()  // "Get from RX FIFO", not the PIO "pull" operation
     }
 
     /// As `read_blocking` but ensure SM is stalled first.
@@ -418,13 +411,14 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     /// As safely_write_byte_blocking(), but then raise the Strong Pull-Up line
     /// as required for parasite-power bus. Match each call with self.end_spu()
     /// at a time of your choosing (but certainly before the next bus operation,
-    /// else there's a risk of frying the PIO output pin's drain circuit). This
-    /// function takes more CPU cycles and introduces an .await point during a
-    /// 54uS window before the last bit goes out, raising the possibility that
-    /// bit is delayed - which is within 1Wire specifications (any length of
-    /// delay is allowed between bits while the master leaves the line floating)
-    /// but arguably messy. It is allowable and safe to use this function even
-    /// if SPU is not configured, just costlier than the non-spu version.
+    /// else there's a risk of frying the PIO output pin's drain transistor).
+    /// This function takes more CPU cycles and introduces an .await point
+    /// during a 54uS window before the last bit goes out, raising the
+    /// possibility that bit is delayed - which is within 1Wire specifications
+    /// (any length of delay is allowed between bits while the master leaves the
+    /// line floating) but arguably messy. It is allowable and safe to use this
+    /// function even if SPU is not configured, just costlier than the non-spu
+    /// version.
     pub async fn safely_write_byte_blocking_spu(self: &mut Self, data: u8) -> u32 {
         self.safety(true).await;
         self.blindly_set_thresholds(7);
@@ -514,10 +508,17 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         // Safety: we're the only writer; the reset puts the bus in a safe state
         // regardless of its state to start.
 
-        // 490uS low pulse, then 70uS until sample bus => 560. Wait just a bit
-        // longer to pull the sample.
-        Timer::after(Duration::from_micros(1000_u64)).await;
-        let v = self.sm.rx().pull(); // any devices present pulled the line low.
+        // 490uS low pulse, then 70uS until sample bus => 560. Be prepared to
+        // wait a bit longer to pull the sample.
+        Timer::after(Duration::from_micros(560_u64)).await;
+        while self.sm.rx().empty() {
+            defmt::info!("reset: ... empty ...");
+            Timer::after(Duration::from_micros(100_u64)).await;
+        }
+
+        // any devices present pulled the line low, shifting 1 into MSB of ISR.
+        // The rest of the LSB are undefined.
+        let presence = ((self.sm.rx().pull() & 0x8000_0000) >> 31) == 0;
 
         // Now wait until SM is idle to reset the clock rate.
         self.safety(true).await;
@@ -526,9 +527,8 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         self.sm.set_clock_divider(d);
         self.sm.clkdiv_restart();
 
-        defmt::debug!("reset: presence {:?}", v >> 31);
         // Return the presence result
-        v != 0
+        presence
     }
 
     /// From stefanalt's original source:
@@ -579,8 +579,12 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
 
         if !self.reset().await {
             *st = Default::default();
-            return None;
+            // return None;  TODO commented out for testing
         }
+
+        defmt::info!("Send general-search in 2s");
+        Timer::after(Duration::from_secs(2)).await;
+
 
         self.safely_write_byte_blocking(
             if st.alarm_search {
@@ -618,6 +622,9 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             }
 
             // Do the next write-two, read-one search operation
+            defmt::debug!("search: bit {:?} byte {:?} mask {:?} dir {:?} in 3s", id_bit_number, rom_byte_number, rom_byte_mask, search_direction);
+            Timer::after(Duration::from_secs(3)).await;
+            self.safety(true).await;
             self.search_triplet(&mut id_bit, &mut cmp_id_bit, &mut search_direction).await;
 
             // Check for no devices on the bus (or maybe last device hot-removed?)
