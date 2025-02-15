@@ -19,6 +19,23 @@
 //! directory, and that those tests pass when run on-chip. Tests are not
 //! comprehensive.
 
+/// Temperature sensor devices and their family code
+pub struct TemperatureSensorFamilyCodes {}
+impl TemperatureSensorFamilyCodes {
+    const DS18S20: u8 = b'\x10';
+    const DS18S20PAR: u8 = b'\x10';
+    const DS18B20: u8 = b'\x28';
+    const MAX31820: u8 = b'\x28';
+    const MAX31820PAR: u8 = b'\x28';
+    const DS1825: u8 = b'\x3b';
+    const MAX31825: u8 = b'\x3b';
+    const MAX31850: u8 = b'\x3b';
+    const MAX31826: u8 = b'\x3b';
+    const DS28EA00: u8 = b'\x42';
+    const MAX30207: u8 = b'\x54';
+    const MAX31888: u8 = b'\x54';
+}
+
 /// Family codes
 pub enum TemperatureSensorFamily {
     OneZero,
@@ -29,54 +46,32 @@ pub enum TemperatureSensorFamily {
 }
 impl TemperatureSensorFamily {
     pub fn from_code(code: u8) -> Result<TemperatureSensorFamily, ()> {
-        let r = if code == TemperatureSensorFamilyCodes::DS18S20 || code == TemperatureSensorFamilyCodes::DS18S20PAR {
+        let r = if code == TemperatureSensorFamilyCodes::DS18S20
+            || code == TemperatureSensorFamilyCodes::DS18S20PAR
+        {
             Ok(TemperatureSensorFamily::OneZero)
-        } else if code == TemperatureSensorFamilyCodes::MAX31820 || code == TemperatureSensorFamilyCodes::MAX31820PAR {
+        } else if code == TemperatureSensorFamilyCodes::MAX31820
+            || code == TemperatureSensorFamilyCodes::MAX31820PAR
+            || code == TemperatureSensorFamilyCodes::DS18B20
+        {
             Ok(TemperatureSensorFamily::TwoEight)
-        } else if code == TemperatureSensorFamilyCodes::DS1825 || code == TemperatureSensorFamilyCodes::MAX31825 || code == TemperatureSensorFamilyCodes::MAX31850 || code == TemperatureSensorFamilyCodes::MAX31826 {
+        } else if code == TemperatureSensorFamilyCodes::DS1825
+            || code == TemperatureSensorFamilyCodes::MAX31825
+            || code == TemperatureSensorFamilyCodes::MAX31850
+            || code == TemperatureSensorFamilyCodes::MAX31826
+        {
             Ok(TemperatureSensorFamily::ThreeBravo)
         } else if code == TemperatureSensorFamilyCodes::DS28EA00 {
             Ok(TemperatureSensorFamily::FourTwo)
-        } else if code == TemperatureSensorFamilyCodes::MAX30207 || code == TemperatureSensorFamilyCodes::MAX31888 {
+        } else if code == TemperatureSensorFamilyCodes::MAX30207
+            || code == TemperatureSensorFamilyCodes::MAX31888
+        {
             Ok(TemperatureSensorFamily::FiveFour)
         } else {
             Err(())
         };
         r
     }
-
-}
-
-pub struct TemperatureSensorFamilyCodes {}
-impl TemperatureSensorFamilyCodes {
-    const DS18S20: u8 = b'\x10';
-    const DS18S20PAR: u8 = b'\x10';
-    const MAX31820: u8 = b'\x28';
-    const MAX31820PAR: u8 = b'\x28';
-    const DS1825: u8 = b'\x3b';
-    const MAX31825: u8 = b'\x3b';
-    const MAX31850: u8 = b'\x3b';
-    const MAX31826: u8 = b'\x3b';
-    const DS28EA00: u8 = b'\x42';
-    const MAX30207: u8 = b'\x54';
-    const MAX31888: u8 = b'\x54';
-
-    /*
-    pub fn family_from_code(code: u8) -> Result<TemperatureSensorFamily, ()>{
-        if code == DS18S20 || code == DS18S20PAR {
-            Ok(OneZero)
-        } else if code == MAX31820 || code == MAXda820PAR {
-            Ok(TemperatureSensorFamily::TwoEight)
-        } else if code == DS1825 || code == MAX31825 || code == MAX31850 || code == MAX31826 {
-            Ok(TemperatureSensorFamily::ThreeBravo)
-        } else if code == DS28EA00 {
-            Ok(TemperatureSensorFamily::FourTwo)
-        } else if code == MAX30207 || code == MAX31888 {
-            Ok(FiveFour)
-        }
-        Err(())
-    }
-    */
 }
 
 /// Reporting precision. Not all precisions are available at
@@ -94,8 +89,11 @@ impl Ds18 {
     pub fn t_conv(family: &u8, precision: &Precision) -> Result<usize, ()> {
         if *family == b'\x10' {
             match *precision {
-                crate::devices::Precision::Nine | crate::devices::Precision::Ten | crate::devices::Precision::Eleven | crate::devices::Precision::Twelve => Ok(750),
-                _ => Err(())
+                crate::devices::Precision::Nine
+                | crate::devices::Precision::Ten
+                | crate::devices::Precision::Eleven
+                | crate::devices::Precision::Twelve => Ok(750),
+                _ => Err(()),
             }
         } else if *family == b'\x28' {
             match *precision {
@@ -103,7 +101,7 @@ impl Ds18 {
                 crate::devices::Precision::Ten => Ok(188),
                 crate::devices::Precision::Eleven => Ok(375),
                 crate::devices::Precision::Twelve => Ok(750),
-                _ => Err(())
+                _ => Err(()),
             }
         } else {
             Err(())
@@ -113,4 +111,3 @@ impl Ds18 {
         // an optimal period?
     }
 }
-
