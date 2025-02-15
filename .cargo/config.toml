@@ -1,5 +1,5 @@
 [target.thumbv6m-none-eabi]
-runner = 'probe-rs run --chip rp2040'
+runner = 'arm-none-eabi-gdb -x bmp.gdb'
 
 [build]
 target = "thumbv6m-none-eabi"

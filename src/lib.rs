@@ -1,4 +1,5 @@
 #![no_std]
+#![no_main]
 
 //! From code at github stefanalt/RP2040-PIO-1-Wire-Master, marked as follows:
 //!-
@@ -54,7 +55,7 @@ use embassy_rp::pio::{
 };
 use embassy_time::{Duration, Timer};
 use fixed::traits::ToFixed;
-use fixed::{FixedU32, types::extra::U8};
+use fixed::{types::extra::U8, FixedU32};
 
 /// All 1Wire devices include an 8-bit ROM ID: 8-bit CRC, 48-bit ID, 8-bit
 /// family code. We keep the CRC here, for no good reason.
@@ -67,7 +68,7 @@ pub struct SearchState {
     pub alarm_search: bool,
     // remaining values are private
     last_discrepancy: usize,
-    last_family_discrepancy: usize,  // TODO Unused; is it necessary or helpful?
+    last_family_discrepancy: usize, // TODO Unused; is it necessary or helpful?
     rom: RomId,
     last_device_flag: bool,
     crc8: u8,
@@ -127,11 +128,11 @@ pub fn crc8(data: &[u8]) -> u8 {
 /// Represent a PIO program, including its code and wraps.
 ///
 /// TODO Look into exposing labels.
-pub struct PioOneWireMasterProgram<'a, PIO: Instance> {
+pub struct OneWireMasterProgram<'a, PIO: Instance> {
     pub prg: LoadedProgram<'a, PIO>,
 }
 
-impl<'a, PIO: Instance> PioOneWireMasterProgram<'a, PIO> {
+impl<'a, PIO: Instance> OneWireMasterProgram<'a, PIO> {
     /// Load program
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
         let prg = pio_proc::pio_asm!(
@@ -186,23 +187,23 @@ const INSTR_LABEL_START: u8 = 8;
 const INSTR_LABEL_WAITING: u8 = 9;
 
 /// Pio-backed 1Wire driver
-pub struct PioOneWireMaster<'d, PIO: Instance, const SM: usize> {
+pub struct OneWireMaster<'d, PIO: Instance, const SM: usize> {
     /// The state machine we're running on
-    sm: StateMachine<'d, PIO, SM>,
+    pub sm: StateMachine<'d, PIO, SM>,
     /// The offset in program memory of the start of our program
-    origin: u8,
+    pub origin: u8,
     /// True if strong pull-up GPIO is configured, false otherwise
-    spu: bool,
+    pub spu: bool,
     // /// Last-set FIFO threshold, for tuning transmit/receive waits
     // threshold: u8,
 }
 
-impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
+impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
     fn new_common(
         common: &mut Common<'d, PIO>,
         mut sm: &mut StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
-        program: &PioOneWireMasterProgram<'d, PIO>,
+        program: OneWireMasterProgram<'d, PIO>,
     ) -> Config<'d, PIO> {
         let pin = common.make_pio_pin(pin);
         let mut cfg = Config::default();
@@ -220,7 +221,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             direction: ShiftDirection::Right,
             threshold,
         };
-        let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 3 ).to_fixed();
+        let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 3).to_fixed();
         defmt::trace!("POWM::new_impl: divider {:?}", d.to_num::<f32>());
         cfg.clock_divider = d;
 
@@ -229,7 +230,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             // preload register y with 1 ==> SPU high (where low ==> asserted)
             instr::set_y(&mut sm, 1);
         }
-        sm.clear_fifos();  // why does set_y leave bits in the OSR?
+        sm.clear_fifos(); // why does set_y leave bits in the OSR?
         if sm.tx().empty() {
             defmt::trace!(" 2 tx fifo is properly empty.");
         } else {
@@ -243,25 +244,35 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         mut sm: StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
         pin_spu: impl PioPin,
-        program: &PioOneWireMasterProgram<'d, PIO>,
+        program: OneWireMasterProgram<'d, PIO>,
     ) -> Self {
         let origin = program.prg.origin;
         let pin_spu = common.make_pio_pin(pin_spu);
         let mut cfg = Self::new_common(common, &mut sm, pin, program);
         cfg.set_out_pins(&[&pin_spu]);
         cfg.set_set_pins(&[&pin_spu]);
-        Self { sm, origin, spu: true }.setup(cfg)
+        Self {
+            sm,
+            origin,
+            spu: true,
+        }
+        .setup(cfg)
     }
 
     pub fn new(
         common: &mut Common<'d, PIO>,
         mut sm: StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
-        program: &PioOneWireMasterProgram<'d, PIO>,
+        program: OneWireMasterProgram<'d, PIO>,
     ) -> Self {
         let origin = program.prg.origin;
         let cfg = Self::new_common(common, &mut sm, pin, program);
-        Self { sm, origin, spu: false }.setup(cfg)
+        Self {
+            sm,
+            origin,
+            spu: false,
+        }
+        .setup(cfg)
     }
 
     fn setup(mut self: Self, cfg: Config<'d, PIO>) -> Self {
@@ -280,7 +291,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     /// Wait until the SM is stalled (TX FIFO and OSR empty, PC at "waiting",
     /// and RX FIFO empty if `drain_rx`) as required for safe use of several API
     /// functions. De-assert the strong-pull-up, if configured and enabled.
-    pub async fn safety(self: &mut Self, drain_rx: bool) -> () {
+    pub async fn safety(self: &mut Self) -> () {
         let three_us = Duration::from_micros(3);
         let fifty_us = Duration::from_micros(50);
         'outer: loop {
@@ -293,20 +304,16 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             }
             let mut timeout = 2000; // 2mS
             'rx_idle_wait: loop {
-                let addr = self.sm.get_addr();
-                if addr == self.origin + INSTR_LABEL_WAITING && self.sm.tx().stalled() {
-                    if (!drain_rx) || self.sm.rx().empty() {
+                if self.sm.tx().stalled() && self.sm.get_addr() == self.origin + INSTR_LABEL_WAITING {
+                    if self.sm.rx().empty() {
                         break 'outer;
                     } else {
                         self.sm.clear_fifos();
                         continue 'rx_idle_wait;
                     }
                 }
-                defmt::debug!("safety: addr {:?}", addr);
-                if drain_rx {
-                    self.sm.rx().pull();
-                }
                 Timer::after(three_us).await;
+                self.sm.rx().pull();
                 timeout -= 1;
                 if timeout <= 0 {
                     error!("SM failed safety");
@@ -314,6 +321,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
                 }
             }
         }
+        self.sm.clear_fifos();  // TODO Thrashing here, fifos should be clear already
         if self.spu {
             self.blindly_end_spu();
         }
@@ -343,7 +351,8 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     }
 
     pub fn blindly_set_thresholds(self: &mut Self, bits: u8) -> () {
-        self.sm.set_thresholds(bits);
+        defmt::assert!(bits <= 32);
+        self.sm.set_thresholds(bits & 0x1f);  // 0 means 32
     }
 
     /// The general "send bits" function, simply puts a 32-bit word on the TX
@@ -374,20 +383,23 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     ///
     /// Returns one 32-bit RX FIFO word after waiting for output stall. Assuming
     /// ISR shift direction is set `ShiftDirection::Right` (as arranged by
-    /// `Self::new`) the last-received bit is MSB of the return value.
-    pub async fn read_blocking(self: &mut Self) -> u32 {
+    /// `Self::new`) the last-received bit is MSB of the return value, which is
+    /// labeled "_raw_" because you must mask/shift the return value according
+    /// to the current threshold setting. LSBs are undefined when read threshold
+    /// is not 32 ("0" in the five-bit threshold register).
+    pub async fn read_raw_blocking(self: &mut Self) -> u32 {
         let n = self.sm.get_rx_threshold();
         let thresh_bits = (0b1_u32 << n) - 1;
-        defmt::trace!("read_blocking: thresh is {:?} so bits {:?}", n, thresh_bits);
+        defmt::trace!("read_raw_blocking: thresh is {:?} so bits {:?}", n, thresh_bits);
         self.blindly_write(thresh_bits).await;
         self.rx_fifo_nonempty_wait().await;
-        self.sm.rx().pull()  // "Get from RX FIFO", not the PIO "pull" operation
+        self.sm.rx().pull() // "Get from RX FIFO", not the PIO "pull" operation
     }
 
-    /// As `read_blocking` but ensure SM is stalled first.
-    pub async fn safely_read_blocking(self: &mut Self) -> u32 {
-        self.safety(true).await;
-        self.read_blocking().await
+    /// As `read_raw_blocking` but ensure SM is stalled first.
+    pub async fn safely_read_raw_blocking(self: &mut Self) -> u32 {
+        self.safety().await;
+        self.read_raw_blocking().await
     }
 
     /// Wait until a safe moment (TX FIFO is empty and SM is at "waiting") then
@@ -397,16 +409,62 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     /// something less than 54uS (subtract for .await latency) before the SM
     /// stalls at "waiting".
     pub async fn safely_write_byte_blocking(self: &mut Self, data: u8) -> u32 {
-        self.safety(true).await;
+        self.safety().await;
         self.blindly_set_thresholds(8);
         self.sm.tx().push(data as u32);
-        self.rx_fifo_nonempty_wait().await;
 
         // return this value - we're part of the read impl. It's 32-bits, with
         // the interesting part at the MSB end, but don't waste time fixing it
         // up here because it's discarded if the intent was not to read the bus.
-        self.sm.rx().pull()
+        self.sm.rx().wait_pull().await
     }
+
+    /*  BUSTED TODO BUSTED
+    /// As `safely_write_byte_blocking` but one or more bytes, buffering through
+    /// FIFOs. Read-back bytes are discarded. TODO Send them back in data,
+    /// supporting a multibyte read operation.
+    pub async fn safely_write_bytes_blocking(self: &mut Self, data: &[u8]) -> () {
+        self.safety().await;
+        let mut balance: isize = 0;
+        let n: usize = data.len();
+        let mut i: usize = 0;  // index into data
+        for s in (1..=4).rev() {
+            if n - i >= s {
+                self.blindly_set_thresholds((s * 8) as u8);
+                while n - i >= s {
+                    while !self.sm.rx().empty() {
+                        self.sm.rx().pull();
+                        defmt::trace!("bal -= 1 A");
+                        balance -= 1;
+                    }
+                    let mut w: u32 = data[i].into();
+                    for j in 1..s {
+                        w |= (data[i + j] as u32) << (j * 8);
+                    }
+                    if !self.sm.tx().full() {
+                        defmt::trace!("push {:x}", w);
+                        self.sm.tx().push(w);
+                        defmt::trace!("bal += 1 A");
+                        balance += 1;
+                    } else {
+                        defmt::trace!("wait_push {:x}", w);
+                        self.sm.tx().wait_push(w).await;
+                        defmt::trace!("bal += 1 B");
+                        balance += 1;
+                    }
+                    i += s;
+                }
+                while balance > 0 {
+                    defmt::trace!("> wait_pull, txempty:{:?}, rxempty:{:?}", self.sm.tx().empty(), self.sm.rx().empty());
+                    defmt::trace!("bal -= 1 B");
+                    self.sm.rx().wait_pull().await;
+                    balance -= 1;
+                    defmt::trace!("< wait_pull");
+                }
+            }
+        }
+    }
+    */
 
     /// As safely_write_byte_blocking(), but then raise the Strong Pull-Up line
     /// as required for parasite-power bus. Match each call with self.end_spu()
@@ -420,7 +478,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     /// function even if SPU is not configured, just costlier than the non-spu
     /// version.
     pub async fn safely_write_byte_blocking_spu(self: &mut Self, data: u8) -> u32 {
-        self.safety(true).await;
+        self.safety().await;
         self.blindly_set_thresholds(7);
         self.sm.tx().push(data as u32);
         self.rx_fifo_nonempty_wait().await;
@@ -433,8 +491,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             instr::set_y(&mut self.sm, 0);
         }
         self.sm.tx().push((data >> 7) as u32);
-        self.rx_fifo_nonempty_wait().await;
-        self.sm.rx().pull() // return this (raw, 32-bit, MSB-interesting)
+        self.sm.rx().wait_pull().await // return this (raw, 32-bit, MSB-interesting)
     }
 
     /// Wait until a safe moment (TX FIFO is empty, SM is at "waiting") then
@@ -458,7 +515,7 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     /// ..._read_..._spu() enables it. It's allowable to call this function even
     /// if SPU is not asserted, and even if SPU is not enabled.
     pub async fn safely_end_spu_blocking(self: &mut Self) -> () {
-        self.safety(true).await; // which calls blindly_end_spu()
+        self.safety().await; // which calls blindly_end_spu()
     }
 
     /// End strong pull-up, presumably after preceding ..._write_..._spu() or
@@ -490,16 +547,18 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
     }
 
     /// Reset the bus, without concern for current state - we wipe it out.
-    /// Return a bool indicating whether any devices signaled their presence
-    /// during the cycle.
+    /// Consider calling .safety() first if the previous operation could still
+    /// be in flight. Return a bool indicating whether any devices signaled
+    /// their presence during the cycle.
     pub async fn reset(self: &mut Self) -> bool {
         // Adjust timing to match reset section of PIO program, and
         // set thresholds for bit-by-bit operation
         let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 70).to_fixed();
         defmt::trace!("reset 1: divider {:?}", d.to_num::<f32>());
+        self.blindly_set_thresholds(1);
+        self.sm.clear_fifos();
         self.sm.set_clock_divider(d);
         self.sm.clkdiv_restart();
-        self.blindly_set_thresholds(1);
 
         // Kick off the reset
         unsafe {
@@ -508,20 +567,15 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         // Safety: we're the only writer; the reset puts the bus in a safe state
         // regardless of its state to start.
 
-        // 490uS low pulse, then 70uS until sample bus => 560. Be prepared to
-        // wait a bit longer to pull the sample.
-        Timer::after(Duration::from_micros(560_u64)).await;
-        while self.sm.rx().empty() {
-            defmt::info!("reset: ... empty ...");
-            Timer::after(Duration::from_micros(100_u64)).await;
-        }
-
         // any devices present pulled the line low, shifting 1 into MSB of ISR.
         // The rest of the LSB are undefined.
-        let presence = ((self.sm.rx().pull() & 0x8000_0000) >> 31) == 0;
+        let presence = ((self.sm.rx().wait_pull().await & 0x8000_0000) >> 31) == 0;
+        if !presence {
+            warn!("No devices responded to 1W bus reset");
+        }
 
         // Now wait until SM is idle to reset the clock rate.
-        self.safety(true).await;
+        self.safety().await;
         let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 3).to_fixed();
         defmt::trace!("reset 2: divider {:?}", d.to_num::<f32>());
         self.sm.set_clock_divider(d);
@@ -554,16 +608,21 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         search_direction: &mut u32,
     ) -> () {
         self.blindly_set_thresholds(2);
-        let fiforx = self.read_blocking().await;
+        let fiforx = self.read_raw_blocking().await;
         *id_bit = (fiforx >> 30) & 1;
         *cmp_id_bit = (fiforx >> 31) & 1;
-        defmt::debug!("search_triplet: id_bit {:?}, cmp_ {:?}", id_bit, cmp_id_bit);
-        match (id_bit, cmp_id_bit) {
-            (0, 0) => (),  // no change to search direction
+        match (*id_bit, *cmp_id_bit) {
+            (0, 0) => (), // no change to search direction
             (0, 1) => *search_direction = 0,
             (1, 0) | (1, 1) => *search_direction = 1,
-            _ => defmt::panic!("Badly busted bit values"),
+            _ => defmt::error!("Badly busted bit values"),
         }
+        defmt::debug!(
+            "search_triplet: read {:?}, {:?}; write {:?}",
+            id_bit,
+            cmp_id_bit,
+            search_direction
+        );
         self.blindly_set_thresholds(1);
         self.blindly_write(*search_direction).await;
     }
@@ -585,14 +644,12 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         defmt::info!("Send general-search in 2s");
         Timer::after(Duration::from_secs(2)).await;
 
-
-        self.safely_write_byte_blocking(
-            if st.alarm_search {
-                0xec_u8  // "alarm" or "conditional" search command
-            } else {
-                0xf0_u8  // "normal" search command, all devices participate
-            }
-        ).await;
+        self.safely_write_byte_blocking(if st.alarm_search {
+            0xec_u8 // "alarm" or "conditional" search command
+        } else {
+            0xf0_u8 // "normal" search command, all devices participate
+        })
+        .await;
 
         let mut found1 = false;
         let mut id_bit: u32 = 0;
@@ -622,10 +679,17 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
             }
 
             // Do the next write-two, read-one search operation
-            defmt::debug!("search: bit {:?} byte {:?} mask {:?} dir {:?} in 3s", id_bit_number, rom_byte_number, rom_byte_mask, search_direction);
+            defmt::debug!(
+                "search: bit {:?} byte {:?} mask {:?} dir {:?} in 3s",
+                id_bit_number,
+                rom_byte_number,
+                rom_byte_mask,
+                search_direction
+            );
             Timer::after(Duration::from_secs(3)).await;
-            self.safety(true).await;
-            self.search_triplet(&mut id_bit, &mut cmp_id_bit, &mut search_direction).await;
+            self.safety().await;
+            self.search_triplet(&mut id_bit, &mut cmp_id_bit, &mut search_direction)
+                .await;
 
             // Check for no devices on the bus (or maybe last device hot-removed?)
             if id_bit != 0 && cmp_id_bit != 0 {
@@ -686,4 +750,3 @@ impl<'d, PIO: Instance, const SM: usize> PioOneWireMaster<'d, PIO, SM> {
         }
     }
 }
-

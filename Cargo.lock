@@ -331,7 +331,6 @@ checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
 [[package]]
 name = "embassy-embedded-hal"
 version = "0.3.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "embassy-futures",
  "embassy-sync",
@@ -347,7 +346,6 @@ dependencies = [
 [[package]]
 name = "embassy-executor"
 version = "0.7.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "cortex-m",
  "critical-section",
@@ -359,7 +357,6 @@ dependencies = [
 [[package]]
 name = "embassy-executor-macros"
 version = "0.6.2"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -370,12 +367,10 @@ dependencies = [
 [[package]]
 name = "embassy-futures"
 version = "0.1.1"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 
 [[package]]
 name = "embassy-hal-internal"
 version = "0.2.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "cortex-m",
  "critical-section",
@@ -386,7 +381,6 @@ dependencies = [
 [[package]]
 name = "embassy-rp"
 version = "0.3.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "atomic-polyfill",
  "cfg-if",
@@ -425,7 +419,6 @@ dependencies = [
 [[package]]
 name = "embassy-sync"
 version = "0.6.2"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -438,7 +431,6 @@ dependencies = [
 [[package]]
 name = "embassy-time"
 version = "0.4.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -454,7 +446,6 @@ dependencies = [
 [[package]]
 name = "embassy-time-driver"
 version = "0.2.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "document-features",
 ]
@@ -462,7 +453,6 @@ dependencies = [
 [[package]]
 name = "embassy-time-queue-utils"
 version = "0.1.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "embassy-executor",
  "heapless",
@@ -471,7 +461,6 @@ dependencies = [
 [[package]]
 name = "embassy-usb-driver"
 version = "0.1.0"
-source = "git+https://github.com/embassy-rs/embassy.git?rev=3b74732#3b74732f40c8fa65e3bdfc1d3ee65c59e9b01a71"
 dependencies = [
  "defmt",
 ]
@@ -827,14 +816,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "panic-probe"
-version = "0.3.2"
+name = "panic-halt"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4047d9235d1423d66cc97da7d07eddb54d4f154d6c13805c6d0793956f4f25b0"
-dependencies = [
- "cortex-m",
- "defmt",
-]
+checksum = "a513e167849a384b7f9b746e517604398518590a9142f4846a32e3c2a4de7b11"
 
 [[package]]
 name = "parking_lot"
@@ -935,6 +920,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "portable-atomic"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "280dc24453071f1b63954171985a0b0d30058d287960968b9b2aca264c8d4ee6"
+dependencies = [
+ "critical-section",
 ]
 
 [[package]]
@@ -1080,9 +1074,24 @@ dependencies = [
  "embassy-time",
  "fixed",
  "heapless",
- "panic-probe",
+ "panic-halt",
  "pio",
  "pio-proc",
+ "portable-atomic",
+ "rtt-target",
+ "static_cell",
+]
+
+[[package]]
+name = "rtt-target"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4235cd78091930e907d2a510adb0db1369e82668eafa338f109742fa0c83059d"
+dependencies = [
+ "critical-section",
+ "defmt",
+ "portable-atomic",
+ "ufmt-write",
 ]
 
 [[package]]
@@ -1183,6 +1192,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
+name = "static_cell"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89b0684884a883431282db1e4343f34afc2ff6996fe1f4a1664519b66e14c1e"
+dependencies = [
+ "portable-atomic",
+]
+
+[[package]]
 name = "string_cache"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1276,6 +1294,12 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+
+[[package]]
+name = "ufmt-write"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e87a2ed6b42ec5e28cc3b94c09982969e9227600b2e3dcbc1db927a84c06bd69"
 
 [[package]]
 name = "unicode-ident"
