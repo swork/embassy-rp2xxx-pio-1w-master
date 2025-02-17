@@ -333,15 +333,6 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
                 }
             }
         }
-
-
-
-        // more thrash during search debug, try removing this but careful of
-        // regresssions that we won't see right now
-        //self.sm.clear_fifos();  // TODO Thrashing here, fifos should be clear already
-
-
-
         if self.spu {
             self.blindly_end_spu();
         }
