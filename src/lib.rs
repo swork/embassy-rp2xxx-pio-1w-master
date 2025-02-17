@@ -47,7 +47,7 @@
 
 pub mod devices;
 
-use defmt::*;
+use defmt::{error, warn, info, debug, trace, unreachable, assert, flush, };
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::pio::{
     instr, Common, Config, Instance, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
@@ -138,12 +138,12 @@ impl<'a, PIO: Instance> OneWireMasterProgram<'a, PIO> {
         let prg = pio_proc::pio_asm!(
             r#"
 ; .program onewire
-.side_set 1 pindirs
+.side_set 2 pindirs
 
 public reset:
     nop           side 1 [6]     ; (1+6)*70us = 490us low
     nop           side 0         ; 1*70us = 70us high
-    in pins, 1    side 0 [6]     ; will sample pin state
+    in pins, 1    side 2 [6]     ; will sample pin state (((0)))
                                  ; and (1+6)*70us = 480us high delay
                                  ; to next operation
     jmp start     side 0;
@@ -151,13 +151,21 @@ public reset:
 ; The rx/tx-branch assumes 3us instruction timing (CLKDIV = CPU-MHz*3)
 .wrap_target
 do_0:
-    in pins, 1    side 1 [15]   ; will sample s.th. (value does not care)
-                                ; and provides (1+15)*3us = 48us low
+;    in pins, 1    side 3 [15]   ; will sample s.th. (value does not care)  (((1)))
+;                                ; and provides (1+15)*3us = 48us low
+    in pins, 1    side 3 [7]   ; will sample s.th. (value does not care)  (((1)))
+    nop           side 1 [7]   ;
+
+
     jmp get_bit   side 1  [1]   ; (1+1)*3us = 6us low
 do_1:
     nop           side 0  [2]   ; (1+2)*3us = 9us high
-    in pins, 1    side 0 [14]   ; will sample pin state at samplepoint
-                                ; and provides (1+14)*3us = 45us high
+;    in pins, 1    side 2 [14]   ; will sample pin state at samplepoint  (((0)))
+;                                ; and provides (1+14)*3us = 45us high
+    in pins, 1    side 2 [7]   ; will sample pin state at samplepoint  (((0)))
+    nop           side 0 [6]
+
+
 public start:
 get_bit:
     mov pins, y   side 0  [2]   ; set pinctlz from y-register. This is
@@ -183,8 +191,8 @@ public waiting:
 
 /// Until labels are exposed we have to manually count locations.
 const INSTR_LABEL_RESET: u8 = 0;
-const INSTR_LABEL_START: u8 = 8;
-const INSTR_LABEL_WAITING: u8 = 9;
+const INSTR_LABEL_START: u8 = 10;  // 8;
+const INSTR_LABEL_WAITING: u8 = 11; // 9;
 
 /// Pio-backed 1Wire driver
 pub struct OneWireMaster<'d, PIO: Instance, const SM: usize> {
@@ -203,12 +211,14 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         common: &mut Common<'d, PIO>,
         mut sm: &mut StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
+        pin_b: impl PioPin,
         program: OneWireMasterProgram<'d, PIO>,
     ) -> Config<'d, PIO> {
         let pin = common.make_pio_pin(pin);
+        let pin_b = common.make_pio_pin(pin_b);
         let mut cfg = Config::default();
         // sideset for output
-        cfg.use_program(&program.prg, &[&pin]);
+        cfg.use_program(&program.prg, &[&pin, &pin_b]);
         cfg.set_in_pins(&[&pin]); // data line is read directly
         let threshold = 32;
         cfg.shift_in = ShiftConfig {
@@ -222,7 +232,7 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
             threshold,
         };
         let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 3).to_fixed();
-        defmt::trace!("POWM::new_impl: divider {:?}", d.to_num::<f32>());
+        trace!("POWM::new_impl: divider {:?}", d.to_num::<f32>());
         cfg.clock_divider = d;
 
         // Safety: This block is safe because we are the only writer, and the program isn't running.
@@ -232,9 +242,9 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         }
         sm.clear_fifos(); // why does set_y leave bits in the OSR?
         if sm.tx().empty() {
-            defmt::trace!(" 2 tx fifo is properly empty.");
+            trace!(" 2 tx fifo is properly empty.");
         } else {
-            defmt::trace!(" 2 tx fifo level: {:?}", sm.tx().level());
+            trace!(" 2 tx fifo level: {:?}", sm.tx().level());
         }
         cfg
     }
@@ -243,12 +253,13 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         common: &mut Common<'d, PIO>,
         mut sm: StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
+        pin_b: impl PioPin,
         pin_spu: impl PioPin,
         program: OneWireMasterProgram<'d, PIO>,
     ) -> Self {
         let origin = program.prg.origin;
         let pin_spu = common.make_pio_pin(pin_spu);
-        let mut cfg = Self::new_common(common, &mut sm, pin, program);
+        let mut cfg = Self::new_common(common, &mut sm, pin, pin_b, program);
         cfg.set_out_pins(&[&pin_spu]);
         cfg.set_set_pins(&[&pin_spu]);
         Self {
@@ -263,10 +274,11 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         common: &mut Common<'d, PIO>,
         mut sm: StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
+        pin_b: impl PioPin,
         program: OneWireMasterProgram<'d, PIO>,
     ) -> Self {
         let origin = program.prg.origin;
-        let cfg = Self::new_common(common, &mut sm, pin, program);
+        let cfg = Self::new_common(common, &mut sm, pin, pin_b, program);
         Self {
             sm,
             origin,
@@ -321,38 +333,28 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
                 }
             }
         }
-        self.sm.clear_fifos();  // TODO Thrashing here, fifos should be clear already
+
+
+
+        // more thrash during search debug, try removing this but careful of
+        // regresssions that we won't see right now
+        //self.sm.clear_fifos();  // TODO Thrashing here, fifos should be clear already
+
+
+
         if self.spu {
             self.blindly_end_spu();
         }
     }
 
-    pub async fn rx_fifo_nonempty_wait(self: &mut Self) -> () {
-        let threshold = self.sm.get_rx_threshold();
-        const fn guess_us(threshold: u64) -> u64 {
-            threshold * 40 // start point. Tune this to minimum additional waits, overruns only for .await latency
-        }
-        Timer::after(Duration::from_micros(guess_us(threshold.into()))).await;
-        let short_delay = Duration::from_micros(2);
-        let mut timer = 2000_i32;
-        while self.sm.rx().empty() {
-            Timer::after(short_delay).await;
-            timer -= 1;
-            if timer <= 0 {
-                error!("wait failure");
-                break;
-            }
-        }
-        defmt::debug!(
-            "rx_fifo_nonempty_wait thresh:{:?} residual:{:?}",
-            threshold,
-            timer
-        );
-    }
-
+    /// Change both rx and tx threshold values to (the same) new value. You must
+    /// be sure tx bits are not in flight, as this operation will surely screw
+    /// them up. Call .safety().await first if uncertain.
     pub fn blindly_set_thresholds(self: &mut Self, bits: u8) -> () {
-        defmt::assert!(bits <= 32);
+        assert!(bits <= 32);
+        self.sm.clear_fifos();
         self.sm.set_thresholds(bits & 0x1f);  // 0 means 32
+        self.sm.restart();
     }
 
     /// The general "send bits" function, simply puts a 32-bit word on the TX
@@ -379,27 +381,22 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
     /// returns the RX FIFO contents. If preconditions are met this will be the
     /// bits sampled from the bus during each bit write cycle, per 1Wire docs.
     /// Preconditions assumed include ISR and RX FIFO empty at start, SM stalled
-    /// on output, and TX threshold set equal or greater than RX threshold.
+    /// on output, and TX threshold set equal to RX threshold.
     ///
     /// Returns one 32-bit RX FIFO word after waiting for output stall. Assuming
     /// ISR shift direction is set `ShiftDirection::Right` (as arranged by
-    /// `Self::new`) the last-received bit is MSB of the return value, which is
-    /// labeled "_raw_" because you must mask/shift the return value according
-    /// to the current threshold setting. LSBs are undefined when read threshold
-    /// is not 32 ("0" in the five-bit threshold register).
-    pub async fn read_raw_blocking(self: &mut Self) -> u32 {
+    /// `Self::new`) the last-received bit is MSB of the return value.
+    pub async fn read_blocking(self: &mut Self) -> u32 {
         let n = self.sm.get_rx_threshold();
-        let thresh_bits = (0b1_u32 << n) - 1;
-        defmt::trace!("read_raw_blocking: thresh is {:?} so bits {:?}", n, thresh_bits);
-        self.blindly_write(thresh_bits).await;
-        self.rx_fifo_nonempty_wait().await;
-        self.sm.rx().pull() // "Get from RX FIFO", not the PIO "pull" operation
+        let thresh_mask = (0b1_u32 << n) - 1;
+        self.blindly_write(thresh_mask).await;
+        self.sm.rx().wait_pull().await >> (32 - n) // "Get from RX FIFO", not the PIO "pull" operation
     }
 
-    /// As `read_raw_blocking` but ensure SM is stalled first.
-    pub async fn safely_read_raw_blocking(self: &mut Self) -> u32 {
+    /// As `read_blocking` but ensure SM is stalled first.
+    pub async fn safely_read_blocking(self: &mut Self) -> u32 {
         self.safety().await;
-        self.read_raw_blocking().await
+        self.read_blocking().await
     }
 
     /// Wait until a safe moment (TX FIFO is empty and SM is at "waiting") then
@@ -419,53 +416,6 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         self.sm.rx().wait_pull().await
     }
 
-    /*  BUSTED TODO BUSTED
-    /// As `safely_write_byte_blocking` but one or more bytes, buffering through
-    /// FIFOs. Read-back bytes are discarded. TODO Send them back in data,
-    /// supporting a multibyte read operation.
-    pub async fn safely_write_bytes_blocking(self: &mut Self, data: &[u8]) -> () {
-        self.safety().await;
-        let mut balance: isize = 0;
-        let n: usize = data.len();
-        let mut i: usize = 0;  // index into data
-        for s in (1..=4).rev() {
-            if n - i >= s {
-                self.blindly_set_thresholds((s * 8) as u8);
-                while n - i >= s {
-                    while !self.sm.rx().empty() {
-                        self.sm.rx().pull();
-                        defmt::trace!("bal -= 1 A");
-                        balance -= 1;
-                    }
-                    let mut w: u32 = data[i].into();
-                    for j in 1..s {
-                        w |= (data[i + j] as u32) << (j * 8);
-                    }
-                    if !self.sm.tx().full() {
-                        defmt::trace!("push {:x}", w);
-                        self.sm.tx().push(w);
-                        defmt::trace!("bal += 1 A");
-                        balance += 1;
-                    } else {
-                        defmt::trace!("wait_push {:x}", w);
-                        self.sm.tx().wait_push(w).await;
-                        defmt::trace!("bal += 1 B");
-                        balance += 1;
-                    }
-                    i += s;
-                }
-                while balance > 0 {
-                    defmt::trace!("> wait_pull, txempty:{:?}, rxempty:{:?}", self.sm.tx().empty(), self.sm.rx().empty());
-                    defmt::trace!("bal -= 1 B");
-                    self.sm.rx().wait_pull().await;
-                    balance -= 1;
-                    defmt::trace!("< wait_pull");
-                }
-            }
-        }
-    }
-    */
-
     /// As safely_write_byte_blocking(), but then raise the Strong Pull-Up line
     /// as required for parasite-power bus. Match each call with self.end_spu()
     /// at a time of your choosing (but certainly before the next bus operation,
@@ -481,10 +431,10 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         self.safety().await;
         self.blindly_set_thresholds(7);
         self.sm.tx().push(data as u32);
-        self.rx_fifo_nonempty_wait().await;
-        self.sm.rx().pull(); // toss "incoming" bits
+        self.sm.rx().wait_pull().await; // toss "incoming" bits
 
         // Last bit, with SPU asserted immediately after
+        self.safety().await;
         self.blindly_set_thresholds(1);
         unsafe {
             // Safety: we are the only writer
@@ -517,6 +467,53 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
     pub async fn safely_end_spu_blocking(self: &mut Self) -> () {
         self.safety().await; // which calls blindly_end_spu()
     }
+
+    /*  BUSTED TODO BUSTED
+    /// As `safely_write_byte_blocking` but one or more bytes, buffering through
+    /// FIFOs. Read-back bytes are discarded. TODO Send them back in data,
+    /// supporting a multibyte read operation.
+    pub async fn safely_write_bytes_blocking(self: &mut Self, data: &[u8]) -> () {
+        self.safety().await;
+        let mut balance: isize = 0;
+        let n: usize = data.len();
+        let mut i: usize = 0;  // index into data
+        for s in (1..=4).rev() {
+            if n - i >= s {
+                self.blindly_set_thresholds((s * 8) as u8);
+                while n - i >= s {
+                    while !self.sm.rx().empty() {
+                        self.sm.rx().pull();
+                        trace!("bal -= 1 A");
+                        balance -= 1;
+                    }
+                    let mut w: u32 = data[i].into();
+                    for j in 1..s {
+                        w |= (data[i + j] as u32) << (j * 8);
+                    }
+                    if !self.sm.tx().full() {
+                        trace!("push {:x}", w);
+                        self.sm.tx().push(w);
+                        trace!("bal += 1 A");
+                        balance += 1;
+                    } else {
+                        trace!("wait_push {:x}", w);
+                        self.sm.tx().wait_push(w).await;
+                        trace!("bal += 1 B");
+                        balance += 1;
+                    }
+                    i += s;
+                }
+                while balance > 0 {
+                    trace!("> wait_pull, txempty:{:?}, rxempty:{:?}", self.sm.tx().empty(), self.sm.rx().empty());
+                    trace!("bal -= 1 B");
+                    self.sm.rx().wait_pull().await;
+                    balance -= 1;
+                    trace!("< wait_pull");
+                }
+            }
+        }
+    }
+    */
 
     /// End strong pull-up, presumably after preceding ..._write_..._spu() or
     /// ..._read_..._spu() has enabled it. It's allowable to call this function
@@ -554,7 +551,6 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         // Adjust timing to match reset section of PIO program, and
         // set thresholds for bit-by-bit operation
         let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 70).to_fixed();
-        defmt::trace!("reset 1: divider {:?}", d.to_num::<f32>());
         self.blindly_set_thresholds(1);
         self.sm.clear_fifos();
         self.sm.set_clock_divider(d);
@@ -577,7 +573,6 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         // Now wait until SM is idle to reset the clock rate.
         self.safety().await;
         let d: FixedU32<U8> = ((clk_sys_freq() / 1_000_000) * 3).to_fixed();
-        defmt::trace!("reset 2: divider {:?}", d.to_num::<f32>());
         self.sm.set_clock_divider(d);
         self.sm.clkdiv_restart();
 
@@ -600,6 +595,10 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
     ///    Refer to MAXIM APPLICATION NOTE 187 "1-Wire Search Algorithm"
     /// */
     ///
+    /// Note that the 1, 1 entry represents a bus error: nobody pulled the line
+    /// low for a matching bit, and nobody pulled it low for the complement of a
+    /// matching bit - not possible if devices are present and communicating.
+    ///
     /// Expect goodness only if the SM is stalled on entry.
     async fn search_triplet(
         self: &mut Self,
@@ -607,24 +606,22 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         cmp_id_bit: &mut u32,
         search_direction: &mut u32,
     ) -> () {
+        self.safety().await;
         self.blindly_set_thresholds(2);
-        let fiforx = self.read_raw_blocking().await;
-        *id_bit = (fiforx >> 30) & 1;
-        *cmp_id_bit = (fiforx >> 31) & 1;
+        self.sm.clear_fifos();
+        let fiforx = self.read_blocking().await;
+        *id_bit = fiforx & 1;
+        *cmp_id_bit = (fiforx >> 1) & 1;
         match (*id_bit, *cmp_id_bit) {
             (0, 0) => (), // no change to search direction
             (0, 1) => *search_direction = 0,
             (1, 0) | (1, 1) => *search_direction = 1,
-            _ => defmt::error!("Badly busted bit values"),
+            _ => unreachable!("Bit masking problem?")
         }
-        defmt::debug!(
-            "search_triplet: read {:?}, {:?}; write {:?}",
-            id_bit,
-            cmp_id_bit,
-            search_direction
-        );
+        self.safety().await;
         self.blindly_set_thresholds(1);
         self.blindly_write(*search_direction).await;
+        self.safety().await;
     }
 
     /// Start or continue a search. Returns Some(rom_id), in which case call
@@ -641,15 +638,13 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
             // return None;  TODO commented out for testing
         }
 
-        defmt::info!("Send general-search in 2s");
-        Timer::after(Duration::from_secs(2)).await;
-
         self.safely_write_byte_blocking(if st.alarm_search {
             0xec_u8 // "alarm" or "conditional" search command
         } else {
             0xf0_u8 // "normal" search command, all devices participate
         })
         .await;
+        self.safety().await;
 
         let mut found1 = false;
         let mut id_bit: u32 = 0;
@@ -669,73 +664,86 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
                 } else {
                     search_direction = 0;
                 }
-            } else {
-                // If equal to last pick 1, else pick 0
-                if id_bit_number == st.last_discrepancy {
-                    search_direction = 1;
-                } else {
-                    search_direction = 0
-                }
+            }
+
+            // If this is the last-seen discrepancy pick 1, else (below) pick
+            // zero. Note this choice is arbitrary; we could search the 0
+            // direction here and the 1 direction in the else case below; just
+            // determines the order in which we resolve specific addresses.
+            else if id_bit_number == st.last_discrepancy {
+                search_direction = 1;
+            }
+
+            // Otherwise, first time seeing this discrepancy. Pick zero (because
+            // we picked one just above).
+            else {
+                search_direction = 0
             }
 
             // Do the next write-two, read-one search operation
-            defmt::debug!(
-                "search: bit {:?} byte {:?} mask {:?} dir {:?} in 3s",
+            debug!(
+                "search: bit {:?} byte {:?} mask {:?} prev_dir {:?}",
                 id_bit_number,
                 rom_byte_number,
                 rom_byte_mask,
                 search_direction
             );
-            Timer::after(Duration::from_secs(3)).await;
-            self.safety().await;
+
             self.search_triplet(&mut id_bit, &mut cmp_id_bit, &mut search_direction)
                 .await;
 
+
+
+            //Timer::after(Duration::from_micros(100)).await;
+
+
+
             // Check for no devices on the bus (or maybe last device hot-removed?)
             if id_bit != 0 && cmp_id_bit != 0 {
+                error!("1W bus error, end search");
                 break;
+            }
+
+            if id_bit == 0 && cmp_id_bit == 0 && search_direction == 0 {
+                last_zero = id_bit_number;
+
+                // check for last discrepancy in family
+                if last_zero < 9 {
+                    st.last_family_discrepancy = last_zero;
+                }
+            }
+
+            // set or clear the bit in the current ROM byte
+            if search_direction != 0 {
+                st.rom[rom_byte_number] |= rom_byte_mask;
             } else {
-                if id_bit == 0 && cmp_id_bit == 0 && search_direction == 0 {
-                    last_zero = id_bit_number;
+                st.rom[rom_byte_number] &= !rom_byte_mask;
+            }
 
-                    // check for last discrepancy in family
-                    if last_zero < 9 {
-                        st.last_family_discrepancy = last_zero;
-                    }
-                }
-
-                // set or clear the bit in the current ROM byte
-                if search_direction != 0 {
-                    st.rom[rom_byte_number] |= rom_byte_mask;
-                } else {
-                    st.rom[rom_byte_number] &= !rom_byte_mask;
-                }
-
-                // prep rom counters for next bit
-                id_bit_number += 1;
-                let overflow;
-                (rom_byte_mask, overflow) = rom_byte_mask.overflowing_shl(1);
-                if overflow {
-                    st.crc8 = crc8_incremental(st.crc8, &(rom_byte_number as u8));
-                    rom_byte_number += 1;
-                    rom_byte_mask = 0b1_u8;
-                }
-
-                // loop for all rom bytes, 0 through 7
-                if rom_byte_number >= 8 {
-                    break;
-                }
+            // prep counters for next bit
+            rom_byte_mask = rom_byte_mask << 1;
+            if rom_byte_mask == 0 {
+                st.crc8 = crc8_incremental(st.crc8, &st.rom[rom_byte_number]);
+                rom_byte_number += 1;
+                rom_byte_mask = 1;
             }
 
             // Determine if the search was successful
-            if id_bit_number >= 65 && st.crc8 == 0 {
-                // Yes, found a ROM ID. Set up to find the next one?
-                st.last_discrepancy = last_zero;
-                if st.last_discrepancy == 0 {
-                    st.last_device_flag = true;
+            id_bit_number += 1;
+            if id_bit_number >= 64 {
+                if st.crc8 == 0 {
+                    // Yes, found a ROM ID. Set up to find the next one?
+                    st.last_discrepancy = last_zero;
+                    if st.last_discrepancy == 0 {
+                        st.last_device_flag = true;
+                    }
+                    found1 = true;
+                } else {
+                    error!("1W CRC error, end search");
                 }
-                found1 = true;
+                break;
             }
+            flush();
         }
 
         // If nothing foiund reset so next 'search' will be like a first search.
