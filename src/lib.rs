@@ -41,28 +41,61 @@
 //!    useful beyond simplest demo programs. Enumerating the bus is a basic
 //!    operation, and with the current implementation it would require running a
 //!    separate program, tearing it down and starting up the intended program
-//!    with the info gathered from the first. If that's what's intended, it
-//!    should be doc'd up front.
+//!    with the info gathered from the first - awkward esp if devices can come
+//!    and go from the bus, as in access control systems. If that's what's
+//!    intended, it should be doc'd up front.
 //!
 
 pub mod devices;
 
-use defmt::{error, warn, info, debug, trace, unreachable, assert, flush, };
+use core::fmt;
+use defmt::{error, warn, info, debug, trace, unreachable, assert, flush, Format, Formatter, write};
 use embassy_rp::clocks::clk_sys_freq;
+
 use embassy_rp::pio::{
-    instr, Common, Config, Instance, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
+    Common, Config, Instance, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
     StateMachine,
 };
+use embassy_rp::pio::program;
 use embassy_time::{Duration, Timer};
 use fixed::traits::ToFixed;
 use fixed::{types::extra::U8, FixedU32};
 
 /// All 1Wire devices include an 8-bit ROM ID: 8-bit CRC, 48-bit ID, 8-bit
-/// family code. We keep the CRC here, for no good reason.
-pub type RomId = [u8; 8];
+/// family code. We keep the CRC here, for no good reason. Explicit Format
+/// impl to get hex bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RomId([u8; 8]);
+
+impl RomId {
+    pub fn family(self: &Self) -> Result<devices::TemperatureSensorFamily, ()> {
+        devices::TemperatureSensorFamily::from_code(self.0[0])
+    }
+}
+
+impl Format for RomId {
+    fn format(&self, fmt: Formatter<'_>) {
+        write!(fmt,
+               "RomId(fam:{:02x} addr:{:02x}-{:02x}-{:02x}-{:02x}-{:02x}-{:02x} crc:{:02x})",
+               self.0[0],
+               self.0[1],
+               self.0[2],
+               self.0[3],
+               self.0[4],
+               self.0[5],
+               self.0[6],
+               self.0[7]);
+    }
+}
+
+pub enum SearchError {
+    BusError,
+    CrcError,
+}
 
 /// All 1Wire devices respond to a search algorithm that can be used to
 /// enumerate a 1Wire bus. This struct tracks state for a search in progress.
+//#[derive(Format)]
 pub struct SearchState {
     /// Set true going into `search` to use ALARM SEARCH command, else general SEARCH
     pub alarm_search: bool,
@@ -74,6 +107,14 @@ pub struct SearchState {
     crc8: u8,
 }
 
+/*
+impl Format for SearchState {
+    fn format(&self, fmt: Formatter<'_>) {
+        write!(fmt, "SearchState(ldisc:{:?} ldev:{:?} rom:{:?})", self.last_discrepancy, self.last_device_flag, self.rom);
+    }
+}
+*/
+
 impl Default for SearchState {
     fn default() -> Self {
         Self {
@@ -81,7 +122,7 @@ impl Default for SearchState {
             last_discrepancy: 0,
             last_device_flag: false,
             last_family_discrepancy: 0,
-            rom: [0; 8],
+            rom: RomId([b'\0'; 8]),
             crc8: 0,
         }
     }
@@ -135,7 +176,7 @@ pub struct OneWireMasterProgram<'a, PIO: Instance> {
 impl<'a, PIO: Instance> OneWireMasterProgram<'a, PIO> {
     /// Load program
     pub fn new(common: &mut Common<'a, PIO>) -> Self {
-        let prg = pio_proc::pio_asm!(
+        let prg = program::pio_asm!(
             r#"
 ; .program onewire
 .side_set 2 pindirs
@@ -209,7 +250,7 @@ pub struct OneWireMaster<'d, PIO: Instance, const SM: usize> {
 impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
     fn new_common(
         common: &mut Common<'d, PIO>,
-        mut sm: &mut StateMachine<'d, PIO, SM>,
+        sm: &mut StateMachine<'d, PIO, SM>,
         pin: impl PioPin,
         pin_b: impl PioPin,
         program: OneWireMasterProgram<'d, PIO>,
@@ -238,7 +279,7 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         // Safety: This block is safe because we are the only writer, and the program isn't running.
         unsafe {
             // preload register y with 1 ==> SPU high (where low ==> asserted)
-            instr::set_y(&mut sm, 1);
+            sm.set_y(1);
         }
         sm.clear_fifos(); // why does set_y leave bits in the OSR?
         if sm.tx().empty() {
@@ -293,7 +334,7 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         // Safe because we're the only writer, and the SM isn't enabled.
         unsafe {
             // jump to the start location
-            instr::exec_jmp(&mut self.sm, self.origin + INSTR_LABEL_START);
+            self.sm.exec_jmp(self.origin + INSTR_LABEL_START);
         }
 
         self.sm.set_enable(true);
@@ -429,7 +470,7 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         self.blindly_set_thresholds(1);
         unsafe {
             // Safety: we are the only writer
-            instr::set_y(&mut self.sm, 0);
+            self.sm.set_y(0);
         }
         self.sm.tx().push((data >> 7) as u32);
         self.sm.rx().wait_pull().await // return this (raw, 32-bit, MSB-interesting)
@@ -514,9 +555,9 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
     pub fn blindly_end_spu(self: &mut Self) -> () {
         unsafe {
             // Preset y register so no SPU during next bit
-            instr::set_y(&mut self.sm, 1);
+            self.sm.set_y(1);
             // Set control pin high right now
-            instr::set_pin(&mut self.sm, 1);
+            self.sm.set_pin(1);
         }
         // Safety: we are the only writer.
     }
@@ -528,8 +569,9 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
             return 0;
         }
         self.safely_write_byte_blocking(0x55).await; // "Match ROM"
+        let r: &[u8; 8] = &rom_id.0;
         for i in 0..8 {
-            self.safely_write_byte_blocking(rom_id[i]).await;
+            self.safely_write_byte_blocking(r[i]).await;
         }
         1
     }
@@ -549,7 +591,7 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
 
         // Kick off the reset
         unsafe {
-            instr::exec_jmp(&mut self.sm, self.origin + INSTR_LABEL_RESET);
+            self.sm.exec_jmp(self.origin + INSTR_LABEL_RESET);
         }
         // Safety: we're the only writer; the reset puts the bus in a safe state
         // regardless of its state to start.
@@ -598,11 +640,11 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         search_direction: &mut u32,
     ) -> () {
         self.safety().await;
-        self.blindly_set_thresholds(2);
         self.sm.clear_fifos();
         let fiforx = self.read_blocking().await;
         *id_bit = fiforx & 1;
-        *cmp_id_bit = (fiforx >> 1) & 1;
+        let fiforx = self.safely_read_blocking().await;
+        *cmp_id_bit = fiforx & 1;
         match (*id_bit, *cmp_id_bit) {
             (0, 0) => (), // no change to search direction
             (0, 1) => *search_direction = 0,
@@ -610,18 +652,17 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
             _ => unreachable!("Bit masking problem?")
         }
         self.safety().await;
-        self.blindly_set_thresholds(1);
         self.blindly_write(*search_direction).await;
         self.safety().await;
     }
 
-    /// Start or continue a search. Returns Some(rom_id), in which case call
-    /// this function again with `st` unchanged to find more, or None if no more
+    /// Start or continue a search. Returns Ok(Some(rom_id)), in which case call
+    /// this function again with `st` unchanged to find more, or Ok(None) if no more
     /// exist.
-    pub async fn search(self: &mut Self, st: &mut SearchState) -> Option<RomId> {
+    pub async fn search(self: &mut Self, st: &mut SearchState) -> Result<Option<RomId>, SearchError> {
         if st.last_device_flag {
             *st = Default::default();
-            return None;
+            return Ok(None);
         }
 
         if !self.reset().await {
@@ -636,6 +677,7 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         })
         .await;
         self.safety().await;
+        self.blindly_set_thresholds(1);
 
         let mut found1 = false;
         let mut id_bit: u32 = 0;
@@ -645,12 +687,16 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
         let mut rom_byte_number: usize = 0;
         let mut rom_byte_mask: u8 = 1;
         let mut search_direction: u32;
+
         loop {
+            let r = &mut st.rom.0;
+
+
             // Pick next-bit search direction, 0 or 1: If this discrepancy is
             // before last_discrepancy from a previous call, pick the same bit
             // as last time.
             if id_bit_number < st.last_discrepancy {
-                if st.rom[rom_byte_number] & rom_byte_mask != 0 {
+                if r[rom_byte_number] & rom_byte_mask != 0 {
                     search_direction = 1;
                 } else {
                     search_direction = 0;
@@ -672,27 +718,24 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
             }
 
             // Do the next write-two, read-one search operation
-            debug!(
-                "search: bit {:?} byte {:?} mask {:?} prev_dir {:?}",
-                id_bit_number,
+            self.search_triplet(&mut id_bit, &mut cmp_id_bit, &mut search_direction)
+                .await;
+
+/*
+            trace!(
+                "search: bit {:?} {:?} {:?} byte {:?} mask {:?} prev_dir {:?}",
+                id_bit_number, id_bit, cmp_id_bit,
                 rom_byte_number,
                 rom_byte_mask,
                 search_direction
             );
-
-            self.search_triplet(&mut id_bit, &mut cmp_id_bit, &mut search_direction)
-                .await;
-
-
-
-            //Timer::after(Duration::from_micros(100)).await;
-
-
+*/
 
             // Check for no devices on the bus (or maybe last device hot-removed?)
             if id_bit != 0 && cmp_id_bit != 0 {
                 error!("1W bus error, end search");
-                break;
+                *st = Default::default();
+                return Err(SearchError::BusError);
             }
 
             if id_bit == 0 && cmp_id_bit == 0 && search_direction == 0 {
@@ -706,15 +749,15 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
 
             // set or clear the bit in the current ROM byte
             if search_direction != 0 {
-                st.rom[rom_byte_number] |= rom_byte_mask;
+                r[rom_byte_number] |= rom_byte_mask;
             } else {
-                st.rom[rom_byte_number] &= !rom_byte_mask;
+                r[rom_byte_number] &= !rom_byte_mask;
             }
 
             // prep counters for next bit
             rom_byte_mask = rom_byte_mask << 1;
             if rom_byte_mask == 0 {
-                st.crc8 = crc8_incremental(st.crc8, &st.rom[rom_byte_number]);
+                st.crc8 = crc8_incremental(st.crc8, &r[rom_byte_number]);
                 rom_byte_number += 1;
                 rom_byte_mask = 1;
             }
@@ -731,21 +774,23 @@ impl<'d, PIO: Instance, const SM: usize> OneWireMaster<'d, PIO, SM> {
                     found1 = true;
                 } else {
                     error!("1W CRC error, end search");
+                    *st = Default::default();
+                    return Err(SearchError::CrcError);
                 }
                 break;
             }
             flush();
         }
 
-        // If nothing foiund reset so next 'search' will be like a first search.
-        if !found1 || st.rom[0] == 0 {
+        // If nothing found reset so next 'search' will be like a first search.
+        if !found1 || st.rom.0[0] == 0 {
             *st = Default::default();
         }
 
         // return success or not
         match found1 {
-            true => Some(st.rom),
-            _ => None,
+            true => Ok(Some(st.rom)),
+            _ => Ok(None),
         }
     }
 }

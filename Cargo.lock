@@ -19,9 +19,9 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "ascii-canvas"
-version = "3.0.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8824ecca2e851cec16968d54a01dd372ef8f95b244fb84b84e70128be347c3c6"
+checksum = "ef1e3e699d84ab1b0911a1010c5c106aa34ae89aeac103be5ce0c3859db1e891"
 dependencies = [
  "term",
 ]
@@ -58,18 +58,18 @@ dependencies = [
 
 [[package]]
 name = "bit-set"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0481a0e032742109b1133a095184ee93d88f3dc9e0d28a5d033dc77a073f44f"
+checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
 dependencies = [
  "bit-vec",
 ]
 
 [[package]]
 name = "bit-vec"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2c54ff287cfc0a34f38a6b832ea1bd8e448a330b3e40a50859e6488bee07f22"
+checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
 name = "bitfield"
@@ -269,7 +269,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3983b127f13995e68c1e29071e5d115cd96f215ccb5e6812e3728cd6f92653b3"
 dependencies = [
- "thiserror 2.0.11",
+ "thiserror",
 ]
 
 [[package]]
@@ -293,46 +293,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "dirs-next"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b98cf8ebf19c3d1b223e151f99a4f9f0690dca41414773390fc824184ac833e1"
-dependencies = [
- "cfg-if",
- "dirs-sys-next",
-]
-
-[[package]]
-name = "dirs-sys-next"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
-dependencies = [
- "libc",
- "redox_users",
- "winapi",
-]
-
-[[package]]
 name = "document-features"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb6969eaabd2421f8a2775cfd2471a2b634372b4a25d41e3bd647b79912850a0"
+checksum = "95249b50c6c185bee49034bcb378a49dc2b5dff0be90ff6616d31d64febab05d"
 dependencies = [
  "litrs",
 ]
 
 [[package]]
 name = "either"
-version = "1.13.0"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
+checksum = "b7914353092ddf589ad78f25c5c1c21b7f80b0ff8621e7c814c3485b5306da9d"
 
 [[package]]
 name = "embassy-embedded-hal"
 version = "0.3.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "embassy-futures",
+ "embassy-hal-internal",
  "embassy-sync",
  "embassy-time",
  "embedded-hal 0.2.7",
@@ -346,6 +327,7 @@ dependencies = [
 [[package]]
 name = "embassy-executor"
 version = "0.7.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "cortex-m",
  "critical-section",
@@ -357,6 +339,7 @@ dependencies = [
 [[package]]
 name = "embassy-executor-macros"
 version = "0.6.2"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -367,10 +350,12 @@ dependencies = [
 [[package]]
 name = "embassy-futures"
 version = "0.1.1"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 
 [[package]]
 name = "embassy-hal-internal"
 version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "cortex-m",
  "critical-section",
@@ -380,7 +365,8 @@ dependencies = [
 
 [[package]]
 name = "embassy-rp"
-version = "0.3.0"
+version = "0.3.1"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "atomic-polyfill",
  "cfg-if",
@@ -408,7 +394,6 @@ dependencies = [
  "fixed",
  "nb 1.1.0",
  "pio",
- "pio-proc",
  "rand_core",
  "rp-pac",
  "rp2040-boot2",
@@ -419,6 +404,7 @@ dependencies = [
 [[package]]
 name = "embassy-sync"
 version = "0.6.2"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -431,6 +417,7 @@ dependencies = [
 [[package]]
 name = "embassy-time"
 version = "0.4.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -446,6 +433,7 @@ dependencies = [
 [[package]]
 name = "embassy-time-driver"
 version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "document-features",
 ]
@@ -453,6 +441,7 @@ dependencies = [
 [[package]]
 name = "embassy-time-queue-utils"
 version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "embassy-executor",
  "heapless",
@@ -461,8 +450,29 @@ dependencies = [
 [[package]]
 name = "embassy-usb-driver"
 version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
 dependencies = [
  "defmt",
+]
+
+[[package]]
+name = "embassy_rp2xxx_pio_1_wire_master"
+version = "0.1.0"
+dependencies = [
+ "cortex-m",
+ "cortex-m-rt",
+ "critical-section",
+ "defmt",
+ "defmt-rtt",
+ "embassy-executor",
+ "embassy-rp",
+ "embassy-time",
+ "fixed",
+ "heapless",
+ "panic-halt",
+ "portable-atomic",
+ "rtt-target",
+ "static_cell",
 ]
 
 [[package]]
@@ -541,15 +551,15 @@ dependencies = [
 
 [[package]]
 name = "equivalent"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
+checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "fixed"
-version = "1.28.0"
+version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85c6e0b89bf864acd20590dbdbad56f69aeb898abfc9443008fd7bd48b2cc85a"
+checksum = "707070ccf8c4173548210893a0186e29c266901b71ed20cd9e2ca0193dfe95c3"
 dependencies = [
  "az",
  "bytemuck",
@@ -559,9 +569,9 @@ dependencies = [
 
 [[package]]
 name = "fixedbitset"
-version = "0.4.2"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "fnv"
@@ -610,17 +620,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "getrandom"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4567c8db10ae91089c99af84c68c38da3ec2f087c3f82960bcdbf3656b6f4d7"
-dependencies = [
- "cfg-if",
- "libc",
- "wasi",
-]
-
-[[package]]
 name = "half"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -657,6 +656,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "home"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "589533453244b0995c858700322199b2becb13b627df2851f64a2775d024abcf"
+dependencies = [
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -674,9 +682,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
@@ -692,9 +700,9 @@ dependencies = [
 
 [[package]]
 name = "lalrpop"
-version = "0.21.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e56f323e2d610628d1f5bdd39168a774674ac7989ed67011963bb3f71edd797"
+checksum = "7047a26de42016abf8f181b46b398aef0b77ad46711df41847f6ed869a2a1d5b"
 dependencies = [
  "ascii-canvas",
  "bit-set",
@@ -714,28 +722,19 @@ dependencies = [
 
 [[package]]
 name = "lalrpop-util"
-version = "0.21.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "108dc8f5dabad92c65a03523055577d847f5dcc00f3e7d3a68bc4d48e01d8fe1"
+checksum = "e8d05b3fe34b8bd562c338db725dfa9beb9451a48f65f129ccb9538b48d2c93b"
 dependencies = [
  "regex-automata",
+ "rustversion",
 ]
 
 [[package]]
 name = "libc"
-version = "0.2.169"
+version = "0.2.170"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
-
-[[package]]
-name = "libredox"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
-dependencies = [
- "bitflags 2.8.0",
- "libc",
-]
+checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
 
 [[package]]
 name = "litrs"
@@ -755,9 +754,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.25"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
+checksum = "30bde2b3dc3671ae49d8e2e9f044c7c005836e7a023ee57cffa25ab82764bb9e"
 
 [[package]]
 name = "memchr"
@@ -852,9 +851,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "petgraph"
-version = "0.6.5"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
+checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
 dependencies = [
  "fixedbitset",
  "indexmap",
@@ -890,7 +889,16 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 [[package]]
 name = "pio"
 version = "0.2.1"
-source = "git+https://github.com/rp-rs/pio-rs?rev=fa586448b0b223217eec8c92c19fe6823dd04cc4#fa586448b0b223217eec8c92c19fe6823dd04cc4"
+source = "git+https://github.com/rp-rs/pio-rs?rev=506a51b9bc135845e8544a0debd75847b73754dc#506a51b9bc135845e8544a0debd75847b73754dc"
+dependencies = [
+ "pio-core",
+ "pio-proc",
+]
+
+[[package]]
+name = "pio-core"
+version = "0.2.2"
+source = "git+https://github.com/rp-rs/pio-rs?rev=506a51b9bc135845e8544a0debd75847b73754dc#506a51b9bc135845e8544a0debd75847b73754dc"
 dependencies = [
  "arrayvec",
  "num_enum",
@@ -900,21 +908,21 @@ dependencies = [
 [[package]]
 name = "pio-parser"
 version = "0.2.2"
-source = "git+https://github.com/rp-rs/pio-rs?rev=fa586448b0b223217eec8c92c19fe6823dd04cc4#fa586448b0b223217eec8c92c19fe6823dd04cc4"
+source = "git+https://github.com/rp-rs/pio-rs?rev=506a51b9bc135845e8544a0debd75847b73754dc#506a51b9bc135845e8544a0debd75847b73754dc"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
- "pio",
+ "pio-core",
 ]
 
 [[package]]
 name = "pio-proc"
 version = "0.2.2"
-source = "git+https://github.com/rp-rs/pio-rs?rev=fa586448b0b223217eec8c92c19fe6823dd04cc4#fa586448b0b223217eec8c92c19fe6823dd04cc4"
+source = "git+https://github.com/rp-rs/pio-rs?rev=506a51b9bc135845e8544a0debd75847b73754dc#506a51b9bc135845e8544a0debd75847b73754dc"
 dependencies = [
  "codespan-reporting",
  "lalrpop-util",
- "pio",
+ "pio-core",
  "pio-parser",
  "proc-macro-error2",
  "proc-macro2",
@@ -924,9 +932,9 @@ dependencies = [
 
 [[package]]
 name = "portable-atomic"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "280dc24453071f1b63954171985a0b0d30058d287960968b9b2aca264c8d4ee6"
+checksum = "350e9b48cbc6b0e028b0473b114454c6316e57336ee184ceab6e53f72c178b3e"
 dependencies = [
  "critical-section",
 ]
@@ -985,22 +993,11 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
+checksum = "82b568323e98e49e2a0899dcee453dd679fae22d69adf9b11dd508d1549b7e2f"
 dependencies = [
  "bitflags 2.8.0",
-]
-
-[[package]]
-name = "redox_users"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
-dependencies = [
- "getrandom",
- "libredox",
- "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1058,28 +1055,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c92f344f63f950ee36cf4080050e4dce850839b9175da38f9d2ffb69b4dbb21"
 dependencies = [
  "crc-any",
-]
-
-[[package]]
-name = "rp2xxx-pio-1-wire-master-rs"
-version = "0.1.0"
-dependencies = [
- "cortex-m",
- "cortex-m-rt",
- "critical-section",
- "defmt",
- "defmt-rtt",
- "embassy-executor",
- "embassy-rp",
- "embassy-time",
- "fixed",
- "heapless",
- "panic-halt",
- "pio",
- "pio-proc",
- "portable-atomic",
- "rtt-target",
- "static_cell",
 ]
 
 [[package]]
@@ -1163,9 +1138,9 @@ checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
 name = "smallvec"
-version = "1.13.2"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
 
 [[package]]
 name = "smart-leds"
@@ -1231,13 +1206,12 @@ dependencies = [
 
 [[package]]
 name = "term"
-version = "0.7.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c59df8ac95d96ff9bede18eb7300b0fda5e5d8d90960e76f8e14ae765eedbf1f"
+checksum = "a3bb6001afcea98122260987f8b7b5da969ecad46dbf0b5453702f776b491a41"
 dependencies = [
- "dirs-next",
- "rustversion",
- "winapi",
+ "home",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1251,31 +1225,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
-dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
 version = "2.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
 dependencies = [
- "thiserror-impl 2.0.11",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "thiserror-impl",
 ]
 
 [[package]]
@@ -1291,9 +1245,9 @@ dependencies = [
 
 [[package]]
 name = "typenum"
-version = "1.17.0"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 
 [[package]]
 name = "ufmt-write"
@@ -1303,9 +1257,9 @@ checksum = "e87a2ed6b42ec5e28cc3b94c09982969e9227600b2e3dcbc1db927a84c06bd69"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.16"
+version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a210d160f08b701c8721ba1c726c11662f877ea6b7094007e1ca9a1041945034"
+checksum = "00e2473a93778eb0bad35909dff6a10d28e63f792f16ed15e404fca9d5eeedbe"
 
 [[package]]
 name = "unicode-width"
@@ -1357,41 +1311,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasi"
-version = "0.11.0+wasi-snapshot-preview1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
-
-[[package]]
-name = "winapi"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419"
-dependencies = [
- "winapi-i686-pc-windows-gnu",
- "winapi-x86_64-pc-windows-gnu",
-]
-
-[[package]]
-name = "winapi-i686-pc-windows-gnu"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
-
-[[package]]
 name = "winapi-util"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
-name = "winapi-x86_64-pc-windows-gnu"
-version = "0.4.0"
+name = "windows-sys"
+version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+dependencies = [
+ "windows-targets",
+]
 
 [[package]]
 name = "windows-sys"
@@ -1465,3 +1400,123 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[patch.unused]]
+name = "cyw43"
+version = "0.3.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "cyw43-pio"
+version = "0.3.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-boot"
+version = "0.4.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-boot-nrf"
+version = "0.4.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-boot-rp"
+version = "0.4.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-boot-stm32"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net"
+version = "0.7.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-adin1110"
+version = "0.3.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-driver"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-driver-channel"
+version = "0.3.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-enc28j60"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-esp-hosted"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-nrf91"
+version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-ppp"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-tuntap"
+version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-net-wiznet"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-nrf"
+version = "0.3.1"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-nxp"
+version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-stm32"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-stm32-wpan"
+version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-usb"
+version = "0.4.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-usb-dfu"
+version = "0.1.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-usb-logger"
+version = "0.4.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"
+
+[[patch.unused]]
+name = "embassy-usb-synopsys-otg"
+version = "0.2.0"
+source = "git+https://github.com/swork/embassy-swork/?branch=swork-add-pio-functions#945d13347786f633dbcd8d6895a41476fcf17f23"

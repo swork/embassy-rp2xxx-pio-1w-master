@@ -9,8 +9,8 @@ use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
-use rp2xxx_pio_1_wire_master_rs::{
-    devices::TemperatureSensorFamily, OneWireMaster, OneWireMasterProgram, RomId, SearchState,
+use embassy_rp2xxx_pio_1_wire_master::{
+    OneWireMaster, OneWireMasterProgram, RomId, SearchState,
 };
 use defmt_rtt as _;
 
@@ -37,20 +37,8 @@ async fn main(_spawner: Spawner) -> ! {
     let owmp = OneWireMasterProgram::<PIO0>::new(&mut common);
     let mut owm = OneWireMaster::<PIO0, 0>::new(&mut common, sm0, p.PIN_15, p.PIN_16, owmp);
 
-    // No device attached, some line twiddling
-    if false {
-        // owm.blindly_set_thresholds(2);
-        // owm.read_blocking().await;
-        owm.safety().await;
-        owm.blindly_set_thresholds(1);
-        owm.read_blocking().await;
-        owm.safety().await;
-        owm.blindly_set_thresholds(3);
-        owm.read_blocking().await;
-    }
-
     // Write and read back scratchpad, working at [bootstrap 414c102]
-    if true {
+    if false {
         let mut b: [u8; 9] = [0; 9];
 
         //info!("Write scratchpad and read back...");
@@ -97,26 +85,26 @@ async fn main(_spawner: Spawner) -> ! {
     }
 
     if true {
-        info!("Search...");
+        info!("Search bus...");
         owm.reset().await;
         let mut st: SearchState = SearchState::start_general();
         const SEARCH_LIMIT: usize = 10; // or whatever
         let mut roms: Vec<RomId, SEARCH_LIMIT> = Vec::new();
         let mut n_others: usize = 0;
-        while let Some(r) = owm.search(&mut st).await {
-            info!(" found {:x}", r);
-            match TemperatureSensorFamily::from_code(r[0]) {
+        while let Ok(Some(r)) = owm.search(&mut st).await {
+            info!(" found {:?}", r);
+            match r.family() {
                 Ok(_fam) => {
                     roms.push(r).unwrap(); // correct: fails exceeding N, checked next
                     if roms.len() >= SEARCH_LIMIT {
                         break;
                     }
-                }
+                },
                 _ => n_others += 1,
             }
         }
-        info!("Search found {:?} DS, {:?} others.", roms.len(), n_others);
-    }
+        info!("Search found {} recognized devices, {} others.", roms.len(), n_others);
+    };
 
     // Read power situation
     if false {

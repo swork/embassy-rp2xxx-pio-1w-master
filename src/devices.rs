@@ -24,6 +24,9 @@ pub struct TemperatureSensorFamilyCodes {}
 impl TemperatureSensorFamilyCodes {
     const DS18S20: u8 = b'\x10';
     const DS18S20PAR: u8 = b'\x10';
+    const DS1822PAR: u8 = b'\x22';
+    const TMP1826: u8 = b'\x26';
+    const TMP1827: u8 = b'\x27';
     const DS18B20: u8 = b'\x28';
     const MAX31820: u8 = b'\x28';
     const MAX31820PAR: u8 = b'\x28';
@@ -39,6 +42,9 @@ impl TemperatureSensorFamilyCodes {
 /// Family codes
 pub enum TemperatureSensorFamily {
     OneZero,
+    TwoTwo,
+    TwoSix,
+    TwoSeven,
     TwoEight,
     ThreeBravo,
     FourTwo,
@@ -46,27 +52,50 @@ pub enum TemperatureSensorFamily {
 }
 impl TemperatureSensorFamily {
     pub fn from_code(code: u8) -> Result<TemperatureSensorFamily, ()> {
+
         let r = if code == TemperatureSensorFamilyCodes::DS18S20
             || code == TemperatureSensorFamilyCodes::DS18S20PAR
         {
             Ok(TemperatureSensorFamily::OneZero)
+
+        } else if code == TemperatureSensorFamilyCodes::DS1822PAR
+        {
+            Ok(TemperatureSensorFamily::TwoTwo)
+
+        } else if code == TemperatureSensorFamilyCodes::TMP1826
+        {
+            Ok(TemperatureSensorFamily::TwoSix)
+
+        } else if code == TemperatureSensorFamilyCodes::TMP1827
+        {
+            Ok(TemperatureSensorFamily::TwoSeven)
+
         } else if code == TemperatureSensorFamilyCodes::MAX31820
             || code == TemperatureSensorFamilyCodes::MAX31820PAR
             || code == TemperatureSensorFamilyCodes::DS18B20
         {
             Ok(TemperatureSensorFamily::TwoEight)
+
         } else if code == TemperatureSensorFamilyCodes::DS1825
             || code == TemperatureSensorFamilyCodes::MAX31825
             || code == TemperatureSensorFamilyCodes::MAX31850
             || code == TemperatureSensorFamilyCodes::MAX31826
         {
             Ok(TemperatureSensorFamily::ThreeBravo)
+
         } else if code == TemperatureSensorFamilyCodes::DS28EA00 {
             Ok(TemperatureSensorFamily::FourTwo)
+
+                // 0x54 devices require the master to read a 2-byte CRC after
+                // commanding a temperature conversion, before that conversion
+                // begins.
         } else if code == TemperatureSensorFamilyCodes::MAX30207
             || code == TemperatureSensorFamilyCodes::MAX31888
         {
             Ok(TemperatureSensorFamily::FiveFour)
+
+                // Unknown (to us) device. It's likely the basic operations work
+                // normally, but we just don't know.
         } else {
             Err(())
         };

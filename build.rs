@@ -9,7 +9,7 @@
 //! new memory settings.
 
 use std::env;
-use std::fs::File;
+use std::fs::{write, File};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -30,7 +30,21 @@ fn main() {
     println!("cargo:rerun-if-changed=memory.x");
 
     println!("cargo:rustc-link-arg=--nmagic");
+
     println!("cargo:rustc-link-arg=-Tlink.x");
     println!("cargo:rustc-link-arg=-Tlink-rp.x");
+
     println!("cargo:rustc-link-arg=-Tdefmt.x");
+}
+
+fn _main() {
+    let out = PathBuf::from(env::var("OUT_DIR").unwrap());
+    write(out.join("link-ram.x"), include_bytes!("link-ram.x")).unwrap();
+    println!("cargo:rustc-link-search={}", out.display());
+
+    println!("cargo:rerun-if-changed=link-ram.x");
+    println!("cargo:rustc-link-arg-bins=-Tlink-ram.x");
+
+    println!("cargo:rustc-link-arg=-Tdefmt.x");
+
 }
